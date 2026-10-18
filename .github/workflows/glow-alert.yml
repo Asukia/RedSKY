@@ -1,0 +1,77 @@
+name: glow-alert
+
+on:
+  schedule:
+    # Hourly at an off-peak minute, so any notify_at in any timezone is served
+    # without editing this file. GitHub may delay scheduled runs under load;
+    # the config's grace_hours window absorbs that. To run less often, see README.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the email in the log instead of sending it"
+        type: boolean
+        default: true
+      ignore_schedule:
+        description: "Treat every subscription as due now (test run; nothing is logged)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write  # commit state/sent.json
+
+concurrency:
+  group: glow-alert
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # A fresh copy has no config.toml yet; skip quietly instead of failing
+      # (and mailing the owner) every hour until it is added.
+      - name: Check config
+        id: config
+        run: |
+          if [ -f config.toml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::config.toml not found; skipping. See README to set up."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Run
+        if: steps.config.outputs.present == 'true'
+        env:
+          SUNSETHUE_API_KEY: ${{ secrets.SUNSETHUE_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: >
+          python -m glow_alert run --config config.toml --state state/sent.json
+          ${{ inputs.dry_run && '--dry-run' || '' }}
+          ${{ inputs.ignore_schedule && '--ignore-schedule' || '' }}
+
+      - name: Commit decision log
+        # Runs after a failed tick too, so decisions made for healthy subscriptions are kept.
+        if: ${{ always() && steps.config.outputs.present == 'true' && !inputs.dry_run && !inputs.ignore_schedule }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/sent.json 2>/dev/null || exit 0
+          git diff --cached --quiet && exit 0
+          git commit -m "state: record glow-alert decisions"
+          git pull --rebase
+          git push

@@ -1,0 +1,32 @@
+# glow-alert config. Copy to config.toml and edit.
+# Get coordinates and timezone with `python -m glow_alert search-city "<city>"` and paste them.
+# City names are never resolved at run time, so an ambiguous name can't silently pick the wrong place.
+
+# Scheduled runs can be late. A run up to this many hours after notify_at still sends.
+# Must cover the gap between notify_at and the next scheduled run (see README).
+grace_hours = 3
+
+[[subscription]]
+id = "hangzhou-sunset"          # unique; letters, digits, _ and - only; used in the decision log
+name = "Hangzhou"               # shown in the email
+latitude = 30.29365             # Sunsethue covers 55°S to 70°N
+longitude = 120.16142
+timezone = "Asia/Shanghai"      # IANA timezone; notify_at is read in this timezone
+events = ["sunset"]             # "sunrise" and/or "sunset"
+notify_at = "08:00"             # local time; checks the first sunrise/sunset after this
+min_quality = 0.41              # Sunsethue quality 0-1; mail only if >= this. 0.41 = good, 0 = always
+email = "you@example.com"       # or a list: ["a@x.com", "b@y.com"]
+language = "en"                 # email language: "en" or "zh"
+
+# Example: an evening reminder for tomorrow's sunrise
+# [[subscription]]
+# id = "hangzhou-sunrise"
+# name = "Hangzhou"
+# latitude = 30.29365
+# longitude = 120.16142
+# timezone = "Asia/Shanghai"
+# events = ["sunrise"]
+# notify_at = "21:00"
+# min_quality = 0.41
+# email = "you@example.com"
+# language = "en"

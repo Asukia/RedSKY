@@ -1,0 +1,30 @@
+{
+  "time": "2024-11-24T16:08:57.906Z",
+  "location": {
+    "latitude": 40.7,
+    "longitude": -74
+  },
+  "grid_location": {
+    "latitude": 41,
+    "longitude": -74
+  },
+  "data": {
+    "type": "sunset",
+    "model_data": true,
+    "quality": 0.34,
+    "cloud_cover": 0.19,
+    "quality_text": "Fair",
+    "time": "2024-11-24T21:32:00.000Z",
+    "direction": 243.1,
+    "magics": {
+      "blue_hour": [
+        "2024-11-24T21:57:00.000Z",
+        "2024-11-24T22:10:00.000Z"
+      ],
+      "golden_hour": [
+        "2024-11-24T21:17:00.000Z",
+        "2024-11-24T21:51:00.000Z"
+      ]
+    }
+  }
+}
