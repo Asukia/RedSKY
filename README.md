@@ -49,7 +49,7 @@ Until `config.toml` exists, scheduled runs skip with a warning instead of failin
 - GitHub may delay scheduled runs. Runs within `grace_hours` (default 3) after `notify_at` still count;
   if the event has already passed when the run starts, it is logged as `missed`.
 - Each event is decided once. If Sunsethue is unavailable (error, quota, no model data), you get one email
-  marked "degraded" with only Open-Meteo cloud cover.
+  saying no forecast is available, with only Open-Meteo cloud cover.
 - Every decision (sent / below threshold / degraded / missed) is recorded in `state/sent.json` and committed by
   the workflow. Compare it with the real sky later to tune your threshold.
 - Cost: 5 Sunsethue credits per event. The free tier gives 1000 per day, far more than one person needs.

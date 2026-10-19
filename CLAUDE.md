@@ -42,7 +42,8 @@ run hourly by GitHub Actions. Modules: `config` (TOML) → `schedule` (due windo
 - The workflow skips (warning, exit 0) when config.toml is missing, so a fresh
   copy and upstream itself don't fail hourly.
 - Email text lives in `render.TEXT`; `config.LANGUAGES` must match its keys
-  (enforced by a test). Chinese output was diffed byte-identical across the
-  refactor that added English.
+  (enforced by a test). Subject format chosen by the user (2026-10-19):
+  `霞信｜<city> · 今日晚霞「良好」0.55 · 17:01` / `Redsky | <city> · Sunset today: Good (0.55) · 17:01`.
+  Tests pin exact subjects; change them only on purpose.
 - A multi-user hosted version (Cloudflare Workers) was built and dropped; it
   lives in the history of the author's private repo, not here.

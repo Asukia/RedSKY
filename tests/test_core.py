@@ -3,6 +3,7 @@
 - openmeteo_nyc.json: live Open-Meteo response for New York, fetched 2026-10-18
 """
 
+import dataclasses
 import json
 import tempfile
 import unittest
@@ -174,19 +175,38 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(len(self.sent), 1)
         subj, body = self.sent[0][1], self.sent[0][2]
-        self.assertIn("今天18:11", subj)
-        self.assertIn("预测质量：0.55", body)
-        self.assertIn("黄金时刻：17:56–18:26", body)
+        self.assertEqual(subj, "霞信｜New York · 今日晚霞「良好」0.55 · 18:11")
+        self.assertIn("今日（10月18日 周日）晚霞预测为「良好」，质量指数 0.55，已达到您设定的提醒阈值 0.41。", body)
+        self.assertIn("\u3000黄金时刻\u300017:56 – 18:26\n", body)
+        self.assertIn("建议于 17:56 前抵达，面向西方取景。", body)
         rec = state.records[event_key("nyc", "sunset", date(2026, 10, 18))]
         self.assertEqual((rec["outcome"], rec["mailed"]), ("alert", True))
 
     def test_english_alert(self):
         self.tick(datetime(2026, 10, 18, 8, 17, tzinfo=NY), quality=0.55, subs=[make_sub(language="en")])
         subj, body = self.sent[0][1], self.sent[0][2]
-        self.assertEqual(subj, "[Glow alert] New York: Sunset today 18:11 (good 0.55)")
-        self.assertIn("Quality: 0.55 / 1 (good; your threshold 0.41)", body)
-        self.assertIn("Golden hour: 17:56–18:26", body)
-        self.assertIn("Sun azimuth: 250° (W)", body)
+        self.assertEqual(subj, "Redsky | New York · Sunset today: Good (0.55) · 18:11")
+        self.assertIn("The sunset today (Sun 18 Oct) is forecast as Good, with a quality score of 0.55, "
+                      "meeting your alert threshold of 0.41.", body)
+        self.assertIn("  Golden hour   17:56 – 18:26\n", body)
+        self.assertIn("  Sun azimuth   250° (W)\n", body)
+        self.assertIn("Arrive by 17:56 and face west.", body)
+
+    def test_two_events_share_one_mail(self):
+        sub = make_sub(events=("sunrise", "sunset"), notify_at=time(4, 0), language="en")
+        self.tick(datetime(2026, 10, 18, 4, 17, tzinfo=NY), quality=0.55, subs=[sub])
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0][1], "Redsky | New York · Sunrise today: Good (0.55) · 07:10; "
+                                          "Sunset today: Good (0.55) · 18:11")
+
+    def test_advice_uses_earliest_light(self):
+        # Before sunrise the blue hour comes first; advice must point to its start, not the golden hour's.
+        def glow(sub, ev):
+            fc = fake_forecast(ev, 0.6)
+            return dataclasses.replace(fc, blue_hour=(ev.time - timedelta(minutes=40), ev.time - timedelta(minutes=20)))
+        sub = make_sub(events=("sunrise",), notify_at=time(21, 0))
+        self.tick(datetime(2026, 10, 18, 21, 17, tzinfo=NY), subs=[sub], glow=glow)
+        self.assertIn("建议于 06:31 前抵达", self.sent[0][2])
 
     def test_silent_below_threshold_but_logged(self):
         state, _ = self.tick(datetime(2026, 10, 18, 8, 17, tzinfo=NY), quality=0.30)
@@ -207,7 +227,7 @@ class RunnerTests(unittest.TestCase):
     def test_evening_reminder_targets_tomorrow_sunrise(self):
         sub = make_sub(events=("sunrise",), notify_at=time(21, 0))
         state, _ = self.tick(datetime(2026, 10, 18, 21, 17, tzinfo=NY), subs=[sub])
-        self.assertIn("明天07:11", self.sent[0][1])
+        self.assertEqual(self.sent[0][1], "霞信｜New York · 明日朝霞「良好」0.50 · 07:11")
         self.assertIn(event_key("nyc", "sunrise", date(2026, 10, 19)), state.records)
 
     def test_degraded_mail_when_sunsethue_down(self):
@@ -215,8 +235,9 @@ class RunnerTests(unittest.TestCase):
             raise SunsethueUnavailable("HTTP 500")
         state, errors = self.tick(datetime(2026, 10, 18, 8, 17, tzinfo=NY), glow=down)
         self.assertEqual(errors, [])
-        self.assertIn("降级", self.sent[0][1])
-        self.assertIn("HTTP 500", self.sent[0][2])
+        self.assertEqual(self.sent[0][1], "霞信｜New York · 今日晚霞暂无预测 · 18:11")
+        self.assertIn("暂未取得晚霞预测（原因：HTTP 500）", self.sent[0][2])
+        self.assertNotIn("建议于", self.sent[0][2])
         self.assertEqual(state.records[event_key("nyc", "sunset", date(2026, 10, 18))]["outcome"], "degraded")
 
     def test_missed_when_run_after_event(self):
