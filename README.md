@@ -30,6 +30,7 @@ days stay quiet. Works anywhere Sunsethue covers (55°S to 70°N).
    python -m glow_alert search-city "Hangzhou"      # pick the right match from the list
    ```
    or with the [Open-Meteo geocoding API](https://open-meteo.com/en/docs/geocoding-api) in a browser.
+   For an exact viewing spot instead of a city centre, see [Choosing a precise spot](#choosing-a-precise-spot).
    Then in your repo on GitHub, **Add file → Create new file**, name it `config.toml`, paste
    [`config.example.toml`](config.example.toml), fill it in, and commit.
 5. **Add Secrets**: your repo → Settings → Secrets and variables → Actions → New repository secret:
@@ -41,6 +42,29 @@ days stay quiet. Works anywhere Sunsethue covers (55°S to 70°N).
 7. That's it. The workflow runs every hour and acts when a reminder is due.
 
 Until `config.toml` exists, scheduled runs skip with a warning instead of failing.
+
+## Choosing a precise spot
+
+`latitude` / `longitude` can be any point, not just a city centre: use the place you actually watch from.
+
+1. In Google Maps, **right-click the spot**; the first line of the menu is its coordinates (e.g. `35.62700, 139.77600`).
+   Click it to copy. On OpenStreetMap, right-click → "Show address" shows them too.
+2. Paste the first number as `latitude` and the second as `longitude`. Five decimals (about 1 m) is plenty.
+3. Find the spot's timezone by opening
+   `https://api.open-meteo.com/v1/forecast?latitude=<lat>&longitude=<lon>&timezone=auto` and reading `"timezone"`.
+4. Several spots are fine: add one `[[subscription]]` per spot and event, each with a unique `id`.
+
+Don't rely on `search-city` for a spot: it knows cities and districts, and a neighbourhood name can match a namesake
+elsewhere (a search for "Odaiba" returns a place in Hokkaido, not the one in Tokyo).
+
+What a precise spot changes, and what it doesn't:
+- **Same:** the glow score is very likely the same across one city. Sunsethue's model grid is 0.25° (about 28 × 23 km
+  at Tokyo's latitude), so points a few kilometres apart usually fall in the same cell. This is inferred from the grid
+  size; whether Sunsethue interpolates between grid points has not been checked.
+- **Different:** sunrise/sunset time, sun azimuth and Open-Meteo cloud cover follow your exact point, and the email
+  names the place you will actually go to.
+- **Not covered by any forecast:** whether buildings, hills or trees block your view to the west (sunset) or east
+  (sunrise). That depends on the spot you pick.
 
 ## How it behaves
 

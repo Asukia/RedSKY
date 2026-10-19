@@ -28,6 +28,7 @@ Sunsethue 覆盖的地方都能用（南纬 55° 到北纬 70°）。
    python -m glow_alert search-city "Hangzhou"      # 从列表里挑对的那个
    ```
    也可以在浏览器里用 [Open-Meteo 地理编码 API](https://open-meteo.com/en/docs/geocoding-api) 查。
+   想用具体的观景点而不是城市中心，见下面的[精确地点](#精确地点)。
    然后在 GitHub 上打开你的仓库，**Add file → Create new file**，文件名填 `config.toml`，
    粘贴 [`config.example.toml`](config.example.toml) 的内容，填好后提交。中文邮件写 `language = "zh"`。
 5. **添加 Secrets**：仓库 Settings → Secrets and variables → Actions → New repository secret，添加
@@ -39,6 +40,26 @@ Sunsethue 覆盖的地方都能用（南纬 55° 到北纬 70°）。
 7. 完成。之后每小时自动运行一次，到点就判断。
 
 还没有 `config.toml` 时，定时运行只会留一条警告然后跳过，不会报错。
+
+## 精确地点
+
+`latitude` / `longitude` 可以是任意一点，不一定是城市中心，填你实际去看霞的地方就行。
+
+1. 在 Google 地图上**右键点那个位置**，菜单第一行就是坐标（例如 `35.62700, 139.77600`），点一下即可复制。
+   OpenStreetMap 上右键 →"显示地址"也能看到坐标。
+2. 第一个数填 `latitude`，第二个数填 `longitude`。保留 5 位小数（约 1 米）就够了。
+3. 查这个点的时区：在浏览器打开
+   `https://api.open-meteo.com/v1/forecast?latitude=<纬度>&longitude=<经度>&timezone=auto`，看 `"timezone"` 那一项。
+4. 可以设好几个地点：每个地点、每种事件各写一条 `[[subscription]]`，`id` 不能重复。
+
+找具体地点别用 `search-city`：它只认到城市和区一级，街区名可能搜到别处的同名地方
+（搜 "Odaiba" 得到的是北海道的一个地方，不是东京的台场）。
+
+精确地点能改变什么、不能改变什么：
+- **不变**：同一座城市里，质量分很可能是一样的。Sunsethue 的模型网格是 0.25°（在东京约 28 × 23 公里一格），
+  相距几公里的点通常落在同一格。这是按网格大小推断的，Sunsethue 会不会在格点之间插值，没有核实过。
+- **会变**：日出日落时刻、太阳方位和 Open-Meteo 云量都按你那个点计算，邮件里写的也是你真正要去的地方。
+- **任何预测都不管**：那个点朝西（晚霞）或朝东（朝霞）有没有楼、山或树挡着。这取决于你选的地方。
 
 ## 行为说明
 
