@@ -50,7 +50,7 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s tests
 
-      - name: Run
+      - name: Check forecast and send
         if: steps.config.outputs.present == 'true'
         env:
           SUNSETHUE_API_KEY: ${{ secrets.SUNSETHUE_API_KEY }}

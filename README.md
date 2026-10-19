@@ -14,6 +14,35 @@ days stay quiet. Works anywhere Sunsethue covers (55°S to 70°N).
 - Runs on GitHub Actions in your own copy of this repo: no server, no domain. Pure Python standard library.
 - Emails in English or Chinese.
 
+## What you get
+
+On a day that reaches your threshold, an email like this (example: the times are real, the scores are illustrative):
+
+```text
+Subject: Redsky | New York · Sunset today: Great (0.72) · 18:11
+
+New York · Sunset today
+
+The sunset today (Sun 18 Oct) is forecast as Great, with a quality score of 0.72, meeting your alert threshold of 0.41.
+
+  Sunset        18:11
+  Golden hour   17:56 – 18:26
+  Blue hour     18:31 – 18:46
+  Sun azimuth   252° (W)
+  Cloud cover   35% (Sunsethue)
+                low 5% · mid 30% · high 55% (Open-Meteo)
+
+Arrive by 17:56 and face west.
+
+--
+Location: New York (40.7000, -74.0000, America/New_York)
+Forecast: Sunsethue (ICON model, 0.25° grid); cloud cover: Open-Meteo
+Forecasts are for reference only; actual sky conditions may differ.
+Subscription nyc-sunset · sent 2026-10-18 12:17 EDT
+```
+
+On other days, nothing.
+
 ## Setup
 
 1. **Make your own private copy**: click **Use this template → Create a new repository** and choose
@@ -22,9 +51,16 @@ days stay quiet. Works anywhere Sunsethue covers (55°S to 70°N).
 2. **Get a Sunsethue API key**: sign up at https://sunsethue.com/dev-api and generate a key in the portal
    (one per account; it is shown only once). The free tier is for personal use.
 3. **Get SMTP credentials for a sending mailbox.** A separate mailbox just for sending is a good idea.
-   Use an app password or SMTP authorization code, not your login password. Examples (check your provider's docs):
-   - Gmail: `smtp.gmail.com`, port 465, needs 2-step verification and an app password
-   - QQ Mail: `smtp.qq.com`, port 465, enable SMTP in settings to get an authorization code
+   You only obtain one thing, a password for apps (app password / authorization code), never your login password;
+   the other values are fixed per provider. Check your provider's docs:
+
+   | Provider | `SMTP_HOST` | `SMTP_PORT` | Password to obtain |
+   |---|---|---|---|
+   | Gmail | `smtp.gmail.com` | `465` | App password (turn on 2-Step Verification first); 16 characters, no spaces |
+   | QQ Mail | `smtp.qq.com` | `465` | Authorization code (enable SMTP in mailbox settings) |
+   | NetEase 163 | `smtp.163.com` | `465` | Authorization code (enable POP3/SMTP in mailbox settings) |
+   | Outlook / Hotmail | | | Not supported: Microsoft requires OAuth for SMTP on personal accounts |
+   | Proton Mail | `smtp.protonmail.ch` | `587` | Only on paid plans, for a custom-domain address (SMTP token) |
 4. **Write your config.** Find your coordinates and timezone, either locally:
    ```bash
    python -m glow_alert search-city "Hangzhou"      # pick the right match from the list
@@ -33,12 +69,30 @@ days stay quiet. Works anywhere Sunsethue covers (55°S to 70°N).
    For an exact viewing spot instead of a city centre, see [Choosing a precise spot](#choosing-a-precise-spot).
    Then in your repo on GitHub, **Add file → Create new file**, name it `config.toml`, paste
    [`config.example.toml`](config.example.toml), fill it in, and commit.
-5. **Add Secrets**: your repo → Settings → Secrets and variables → Actions → New repository secret:
-   `SUNSETHUE_API_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and optionally `MAIL_FROM`.
-6. **Test it**: Actions → glow-alert → Run workflow.
-   - First keep both `dry_run` and `ignore_schedule` ticked: the email is printed in the log, nothing is sent or recorded.
-   - Then untick `dry_run` to really send. `ignore_schedule` only skips the "is it time yet" check; the threshold
-     still applies, so on a poor day you get no email. Set `min_quality = 0` temporarily to force one.
+5. **Add Secrets**: your repo → Settings → Secrets and variables → Actions → **Secrets** tab →
+   **New repository secret**, one per row. Names must match exactly.
+
+   | Secret | Value |
+   |---|---|
+   | `SUNSETHUE_API_KEY` | your Sunsethue key |
+   | `SMTP_HOST`, `SMTP_PORT` | from the table in step 3 |
+   | `SMTP_USER` | the full sending address, e.g. `you@163.com` |
+   | `SMTP_PASSWORD` | the app password / authorization code |
+   | `MAIL_FROM` | optional display name, e.g. `Redsky <you@163.com>` (same address as `SMTP_USER`) |
+
+   Keys only belong in Secrets; never paste them into issues, chats or `config.toml`.
+6. **Test it**: Actions → glow-alert → **Run workflow**. When it finishes, open the run, click **tick** on the left,
+   then expand the step **Check forecast and send**.
+   - **First keep `dry_run` and `ignore_schedule` both ticked.** Nothing is sent or recorded. Each subscription
+     gets one line, e.g. `INFO my-sunset: sunset 2026-10-19 -> below_threshold (q=0.05)`:
+     - `alert`: the score reached your threshold; the email that would be sent is printed below it.
+     - `below_threshold`: no email this time. This is normal, and most days look like this.
+     - `degraded (reason)`: no forecast. `SUNSETHUE_API_KEY not set` means the secret is missing or misnamed;
+       in the step's `env:` block a secret that was found shows as `***`, a missing one is blank.
+   - To see an email whatever the score, set `min_quality = 0` in `config.toml` temporarily.
+   - **Then untick `dry_run`** (keep `ignore_schedule`) to really send. Look for `mailed 1 recipient(s)` in the log,
+     and check the spam folder the first time.
+   - Put `min_quality` back afterwards, before the next scheduled run, or that run mails regardless of the score.
 7. That's it. The workflow runs every hour and acts when a reminder is due.
 
 Until `config.toml` exists, scheduled runs skip with a warning instead of failing.

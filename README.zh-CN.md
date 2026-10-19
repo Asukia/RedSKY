@@ -13,16 +13,52 @@ Sunsethue 覆盖的地方都能用（南纬 55° 到北纬 70°）。
 - 运行：在你自己复制的仓库里用 GitHub Actions 定时运行，不需要服务器和域名。纯 Python 标准库。
 - 邮件可选中文或英文。
 
+## 收到的邮件
+
+分数达到阈值的那天，你会收到这样一封邮件（示例：时刻是真实数据，分数是演示用的）：
+
+```text
+Subject: 霞信｜New York · 今日晚霞「优秀」0.72 · 18:11
+
+New York · 今日晚霞
+
+今日（10月18日 周日）晚霞预测为「优秀」，质量指数 0.72，已达到您设定的提醒阈值 0.41。
+
+　日落时刻　18:11
+　黄金时刻　17:56 – 18:26
+　蓝调时刻　18:31 – 18:46
+　太阳方位　252°（西）
+　云　　量　35%（Sunsethue）
+　　　　　　低 5% · 中 30% · 高 55%（Open-Meteo）
+
+建议于 17:56 前抵达，面向西方取景。
+
+——
+地点：New York（40.7000, -74.0000，America/New_York）
+预测：Sunsethue（ICON 模型，0.25° 网格）；云量：Open-Meteo
+预测仅供参考，以实际天象为准。
+订阅 nyc-sunset · 发送于 2026-10-18 12:17 EDT
+```
+
+其他日子不打扰。
+
 ## 部署步骤
 
 1. **复制一份私有仓库**：点 **Use this template → Create a new repository**，选 **Private**。
    一定要私有：`config.toml` 里有你的邮箱，决策记录 `state/sent.json` 也能看出你的位置。
 2. **申请 Sunsethue key**：在 https://sunsethue.com/dev-api 注册，到 portal 生成 key
    （每个账号一个，只显示一次）。免费额度限个人使用。
-3. **准备发信邮箱的 SMTP 授权码**：建议专门注册一个用来发信的邮箱。用应用专用密码或授权码，不是登录密码。
-   常见设置（以邮箱官方说明为准）：
-   - Gmail：`smtp.gmail.com`，端口 465，需要开启两步验证，然后生成"应用专用密码"
-   - QQ 邮箱：`smtp.qq.com`，端口 465，在设置里开启 SMTP 后获取授权码
+3. **准备发信邮箱的 SMTP 授权码**：建议专门注册一个用来发信的邮箱。
+   你只需要申请一样东西：给第三方程序用的专用密码（Gmail 叫"应用专用密码"，QQ/163 叫"授权码"），
+   不是登录密码。其余几项是每家邮箱固定的设置。以邮箱官方说明为准：
+
+   | 邮箱 | `SMTP_HOST` | `SMTP_PORT` | 要申请的密码 |
+   |---|---|---|---|
+   | Gmail | `smtp.gmail.com` | `465` | 应用专用密码（先开启两步验证），16 位，填写时去掉空格 |
+   | QQ 邮箱 | `smtp.qq.com` | `465` | 授权码（在邮箱设置里开启 SMTP） |
+   | 网易 163 | `smtp.163.com` | `465` | 授权码（在邮箱设置里开启 POP3/SMTP） |
+   | Outlook / Hotmail | | | 不支持：微软个人账号的 SMTP 只能用 OAuth 登录 |
+   | Proton Mail | `smtp.protonmail.ch` | `587` | 只有付费套餐的自定义域名地址可用（SMTP token） |
 4. **写配置**：先查坐标和时区。可以在本地运行
    ```bash
    python -m glow_alert search-city "Hangzhou"      # 从列表里挑对的那个
@@ -31,12 +67,30 @@ Sunsethue 覆盖的地方都能用（南纬 55° 到北纬 70°）。
    想用具体的观景点而不是城市中心，见下面的[精确地点](#精确地点)。
    然后在 GitHub 上打开你的仓库，**Add file → Create new file**，文件名填 `config.toml`，
    粘贴 [`config.example.toml`](config.example.toml) 的内容，填好后提交。中文邮件写 `language = "zh"`。
-5. **添加 Secrets**：仓库 Settings → Secrets and variables → Actions → New repository secret，添加
-   `SUNSETHUE_API_KEY`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASSWORD`，`MAIL_FROM` 可选。
-6. **手动测试**：Actions → glow-alert → Run workflow。
-   - 先保持 `dry_run` 和 `ignore_schedule` 都勾选：邮件内容打印在日志里，不发送，也不记录。
-   - 再取消 `dry_run`，真的发信。`ignore_schedule` 只跳过"是否到点"的判断，阈值照常生效：
-     当天分数不够就收不到邮件。想确保收到一封，可以临时把 `min_quality` 设为 0。
+5. **添加 Secrets**：仓库 Settings → Secrets and variables → Actions → **Secrets** 页签 →
+   **New repository secret**，每行添加一项，名字必须一字不差。
+
+   | Secret | 填什么 |
+   |---|---|
+   | `SUNSETHUE_API_KEY` | 你的 Sunsethue key |
+   | `SMTP_HOST`、`SMTP_PORT` | 见第 3 步的表 |
+   | `SMTP_USER` | 发信邮箱的完整地址，例如 `you@163.com` |
+   | `SMTP_PASSWORD` | 应用专用密码或授权码 |
+   | `MAIL_FROM` | 可选，显示的发件人名，例如 `霞信 <you@163.com>`（地址要和 `SMTP_USER` 相同） |
+
+   密钥只放在 Secrets 里，不要贴到 issue、聊天或 `config.toml` 里。
+6. **手动测试**：Actions → glow-alert → **Run workflow**。运行结束后点开这次运行，点左侧的 **tick**，
+   再展开 **Check forecast and send** 这一步。
+   - **先保持 `dry_run` 和 `ignore_schedule` 都勾选**。不会发信，也不记录。每条订阅会有一行结果，
+     例如 `INFO my-sunset: sunset 2026-10-19 -> below_threshold (q=0.05)`：
+     - `alert`：分数达到阈值，下面会打印出将要发送的邮件。
+     - `below_threshold`：这次不发信。这是正常情况，大多数日子都是这样。
+     - `degraded (原因)`：没拿到预测。如果原因是 `SUNSETHUE_API_KEY not set`，说明这个 Secret 没加或名字不对；
+       这一步的 `env:` 里，读到的 Secret 显示为 `***`，没读到的是空的。
+   - 想不管分数先看看邮件长什么样，就在 `config.toml` 里临时把 `min_quality` 设为 `0`。
+   - **再取消 `dry_run`**（`ignore_schedule` 保持勾选），真的发一封。日志里出现 `mailed 1 recipient(s)` 就是发出去了；
+     第一次记得看看垃圾邮件。
+   - 测完把 `min_quality` 改回去，而且要在下一次定时运行之前，否则那次运行会不管分数直接发信。
 7. 完成。之后每小时自动运行一次，到点就判断。
 
 还没有 `config.toml` 时，定时运行只会留一条警告然后跳过，不会报错。
