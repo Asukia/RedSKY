@@ -2,10 +2,11 @@ name: glow-alert
 
 on:
   schedule:
-    # Hourly at an off-peak minute, so any notify_at in any timezone is served
-    # without editing this file. GitHub may delay scheduled runs under load;
-    # the config's grace_hours window absorbs that. To run less often, see README.
-    - cron: "17 * * * *"
+    # Twice a day, in the timezone given below, matching the notify_at times in
+    # config.example.toml (08:00 and 21:00). Change the hours and timezone to your
+    # own notify_at values (see README). Minute 17 avoids the busy top of the hour.
+    - cron: "17 8,21 * * *"
+      timezone: "Asia/Shanghai"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -32,7 +33,7 @@ jobs:
       - uses: actions/checkout@v7
 
       # A fresh copy has no config.toml yet; skip quietly instead of failing
-      # (and mailing the owner) every hour until it is added.
+      # (and mailing the owner) on every scheduled run until it is added.
       - name: Check config
         id: config
         run: |

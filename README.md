@@ -69,7 +69,15 @@ On other days, nothing.
    For an exact viewing spot instead of a city centre, see [Choosing a precise spot](#choosing-a-precise-spot).
    Then in your repo on GitHub, **Add file → Create new file**, name it `config.toml`, paste
    [`config.example.toml`](config.example.toml), fill it in, and commit.
-5. **Add Secrets**: your repo → Settings → Secrets and variables → Actions → **Secrets** tab →
+5. **Set the schedule** in `.github/workflows/glow-alert.yml` (pencil icon to edit on GitHub). It runs twice a day,
+   at 08:17 and 21:17 Shanghai time, to match the example config. Change it to your own `notify_at` times:
+   ```yaml
+       - cron: "17 8,21 * * *"        # minute 17 of hours 8 and 21
+         timezone: "Asia/Shanghai"    # the timezone of your subscriptions
+   ```
+   For `notify_at = "12:00"` and `"21:00"`, write `"17 12,21 * * *"`. See [Schedule](#schedule) for backups and
+   other timezones.
+6. **Add Secrets**: your repo → Settings → Secrets and variables → Actions → **Secrets** tab →
    **New repository secret**, one per row. Names must match exactly.
 
    | Secret | Value |
@@ -81,7 +89,7 @@ On other days, nothing.
    | `MAIL_FROM` | optional display name, e.g. `Redsky <you@163.com>` (same address as `SMTP_USER`) |
 
    Keys only belong in Secrets; never paste them into issues, chats or `config.toml`.
-6. **Test it**: Actions → glow-alert → **Run workflow**. When it finishes, open the run, click **tick** on the left,
+7. **Test it**: Actions → glow-alert → **Run workflow**. When it finishes, open the run, click **tick** on the left,
    then expand the step **Check forecast and send**.
    - **First keep `dry_run` and `ignore_schedule` both ticked.** Nothing is sent or recorded. Each subscription
      gets one line, e.g. `INFO my-sunset: sunset 2026-10-19 -> below_threshold (q=0.05)`:
@@ -93,7 +101,7 @@ On other days, nothing.
    - **Then untick `dry_run`** (keep `ignore_schedule`) to really send. Look for `mailed 1 recipient(s)` in the log,
      and check the spam folder the first time.
    - Put `min_quality` back afterwards, before the next scheduled run, or that run mails regardless of the score.
-7. That's it. The workflow runs every hour and acts when a reminder is due.
+8. That's it. The workflow runs at the times in its schedule and mails you when a forecast reaches your threshold.
 
 Until `config.toml` exists, scheduled runs skip with a warning instead of failing.
 
@@ -132,23 +140,25 @@ What a precise spot changes, and what it doesn't:
   the workflow. Compare it with the real sky later to tune your threshold.
 - Cost: 5 Sunsethue credits per event. The free tier gives 1000 per day, far more than one person needs.
 
-## Why hourly, and running less often
+## Schedule
 
-The schedule (`cron`) in `.github/workflows/glow-alert.yml` is in UTC and the same for everyone, while each person's
-`notify_at` is local. Hourly runs serve any time in any timezone without editing the workflow, handle daylight
-saving time, and give spare tries when GitHub runs late or skips a run.
+The `cron` line in `.github/workflows/glow-alert.yml` decides when the workflow runs; `notify_at` decides which runs
+act. A run acts on a reminder when it lands in `[notify_at, notify_at + grace_hours)`, so pick a cron minute at or
+just after the `notify_at` minute. With `timezone` set, cron hours are local hours, and daylight saving time is
+handled by GitHub.
 
-If you prefer fewer runs, edit the `cron` line so that each run lands in `[notify_at, notify_at + grace_hours)`.
-Example for Hangzhou (UTC+8) with reminders at 08:00 and 21:00 local, i.e. 00:00 and 13:00 UTC:
+GitHub runs scheduled workflows on a best-effort basis: they can start late, and under load some are dropped.
+When the one run for a reminder is dropped, that reminder is skipped silently. If that matters, add a backup run
+an hour later. It never sends twice, because each event is decided only once:
 
 ```yaml
-    - cron: "17 0,1,13,14 * * *"   # one run per reminder plus one backup an hour later
+    - cron: "17 8,9,21,22 * * *"   # each reminder plus a backup an hour later
+      timezone: "Asia/Shanghai"
 ```
 
-The backup run never sends twice: each event is only decided once. Without it, a run GitHub skips means no
-reminder that day. In a timezone with daylight saving time, check that your times still fall inside the window
-in both summer and winter. Private repos have a monthly Actions minutes allowance (see GitHub's billing docs);
-hourly runs use about 720 minutes a month, because each run is billed as at least one minute.
+Subscriptions in different timezones need one `- cron:` entry (with its own `timezone`) per timezone.
+Private repos have a monthly Actions minutes allowance (see GitHub's billing docs). Each run is billed as at least
+one minute, so two runs a day use about 60 minutes a month.
 
 ## Run locally
 

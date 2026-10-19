@@ -1,7 +1,7 @@
 # glow-alert — constraints for future work
 
 Self-hosted sunrise/sunset glow email reminder. Stdlib-only Python (>=3.11),
-run hourly by GitHub Actions. Modules: `config` (TOML) → `schedule` (due window)
+run on a schedule by GitHub Actions. Modules: `config` (TOML) → `schedule` (due window)
 → `openmeteo` (event times, clouds) → `sunsethue` (quality) → `runner` (decide)
 → `render` / `mailer`; `state` is the dedupe + decision log.
 
@@ -25,6 +25,13 @@ run hourly by GitHub Actions. Modules: `config` (TOML) → `schedule` (due windo
 ## Scheduling / GitHub Actions
 - Scheduled runs can be delayed or dropped under load; only `grace_hours`
   (default 3) absorbs delays. Events already passed are logged as `missed`.
+- The workflow schedule uses the `timezone` key (IANA; documented by GitHub,
+  read 2026-10-19) so cron hours equal notify_at hours. Upstream default:
+  twice a day, `17 8,21` Asia/Shanghai, matching config.example.toml.
+  Each user must edit it to their own notify_at (README "Schedule").
+- Observed 2026-10-19: upstream's hourly schedule fired only 4 times in ~17 h,
+  and a private copy's two daily slots both never fired. Treat any single
+  scheduled run as unreliable; README suggests a backup run an hour later.
 - Dedupe key = (subscription id, event type, event LOCAL date).
 - Docs say scheduled workflows auto-disable after 60 days of inactivity in
   PUBLIC repos. Use a private repo (config holds email addresses).
@@ -40,7 +47,7 @@ run hourly by GitHub Actions. Modules: `config` (TOML) → `schedule` (due windo
   why every user brings their own Sunsethue key. Open-Meteo data is CC BY 4.0
   (credited in every email footer and the README).
 - The workflow skips (warning, exit 0) when config.toml is missing, so a fresh
-  copy and upstream itself don't fail hourly.
+  copy and upstream itself don't fail on every scheduled run.
 - Email text lives in `render.TEXT`; `config.LANGUAGES` must match its keys
   (enforced by a test). Subject format chosen by the user (2026-10-19):
   `霞信｜<city> · 今日晚霞「良好」0.55 · 17:01` / `Redsky | <city> · Sunset today: Good (0.55) · 17:01`.

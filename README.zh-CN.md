@@ -67,7 +67,14 @@ New York · 今日晚霞
    想用具体的观景点而不是城市中心，见下面的[精确地点](#精确地点)。
    然后在 GitHub 上打开你的仓库，**Add file → Create new file**，文件名填 `config.toml`，
    粘贴 [`config.example.toml`](config.example.toml) 的内容，填好后提交。中文邮件写 `language = "zh"`。
-5. **添加 Secrets**：仓库 Settings → Secrets and variables → Actions → **Secrets** 页签 →
+5. **设置运行时间**：在 GitHub 上打开 `.github/workflows/glow-alert.yml`，点铅笔图标编辑。默认一天运行两次，
+   上海时间 08:17 和 21:17，对应示例配置。改成你自己的 `notify_at` 时间：
+   ```yaml
+       - cron: "17 8,21 * * *"        # 每天 8 点和 21 点的第 17 分
+         timezone: "Asia/Shanghai"    # 你的订阅所在时区
+   ```
+   比如 `notify_at = "12:00"` 和 `"21:00"`，就写 `"17 12,21 * * *"`。备份运行和多个时区见下面的[运行时间](#运行时间)。
+6. **添加 Secrets**：仓库 Settings → Secrets and variables → Actions → **Secrets** 页签 →
    **New repository secret**，每行添加一项，名字必须一字不差。
 
    | Secret | 填什么 |
@@ -79,7 +86,7 @@ New York · 今日晚霞
    | `MAIL_FROM` | 可选，显示的发件人名，例如 `霞信 <you@163.com>`（地址要和 `SMTP_USER` 相同） |
 
    密钥只放在 Secrets 里，不要贴到 issue、聊天或 `config.toml` 里。
-6. **手动测试**：Actions → glow-alert → **Run workflow**。运行结束后点开这次运行，点左侧的 **tick**，
+7. **手动测试**：Actions → glow-alert → **Run workflow**。运行结束后点开这次运行，点左侧的 **tick**，
    再展开 **Check forecast and send** 这一步。
    - **先保持 `dry_run` 和 `ignore_schedule` 都勾选**。不会发信，也不记录。每条订阅会有一行结果，
      例如 `INFO my-sunset: sunset 2026-10-19 -> below_threshold (q=0.05)`：
@@ -91,7 +98,7 @@ New York · 今日晚霞
    - **再取消 `dry_run`**（`ignore_schedule` 保持勾选），真的发一封。日志里出现 `mailed 1 recipient(s)` 就是发出去了；
      第一次记得看看垃圾邮件。
    - 测完把 `min_quality` 改回去，而且要在下一次定时运行之前，否则那次运行会不管分数直接发信。
-7. 完成。之后每小时自动运行一次，到点就判断。
+8. 完成。之后按设定的时间自动运行，分数达到阈值就发信。
 
 还没有 `config.toml` 时，定时运行只会留一条警告然后跳过，不会报错。
 
@@ -127,22 +134,22 @@ New York · 今日晚霞
   事后可以对照实际天空，调整自己的阈值。
 - 额度：每个事件 5 个 Sunsethue credits，免费版每天 1000 个，个人使用绰绰有余。
 
-## 为什么每小时运行，以及怎么减少运行次数
+## 运行时间
 
-`.github/workflows/glow-alert.yml` 里的定时（`cron`）用的是 UTC 时间，对所有人都一样；而每个人的 `notify_at`
-是自己的当地时间。每小时运行一次，任何时区、任何提醒时间都不用改 workflow，夏令时也不用管；
-GitHub 延迟或漏掉一次运行时，下一小时还能补上。
+`.github/workflows/glow-alert.yml` 里的 `cron` 决定什么时候运行，`notify_at` 决定哪次运行去判断。
+一次运行落在 `[notify_at, notify_at + grace_hours)` 这个窗口里，才会判断对应的提醒，所以 cron 的分钟要等于或稍晚于
+`notify_at` 的分钟。设了 `timezone` 后，cron 里的小时就是当地时间，夏令时由 GitHub 处理。
 
-如果想少跑几次，可以改 `cron`，让每次运行都落在 `[notify_at, notify_at + grace_hours)` 这个窗口里。
-例如杭州（UTC+8），当地 08:00 和 21:00 提醒，对应 UTC 00:00 和 13:00：
+GitHub 的定时任务不保证准时：可能延迟，负载高时还会被直接丢掉。一个提醒只有一次运行时，这次被丢掉，
+当天就收不到提醒，也不会有任何报错。介意的话，加一次一小时后的备份。备份不会重复发信，因为每个事件只判断一次：
 
 ```yaml
-    - cron: "17 0,1,13,14 * * *"   # 每个提醒运行一次，再加一小时后的一次备份
+    - cron: "17 8,9,21,22 * * *"   # 每个提醒运行一次，再加一小时后的一次备份
+      timezone: "Asia/Shanghai"
 ```
 
-备份那次不会重复发信，因为每个事件只判断一次。不加备份的话，GitHub 一旦漏跑，当天就收不到提醒。
-有夏令时的时区，要确认冬夏两季的运行时间都还在窗口里。私有仓库每月有 Actions 分钟数额度（见 GitHub 计费文档）；
-每次运行至少按 1 分钟计，每小时运行一个月大约用 720 分钟。
+订阅分布在不同时区时，每个时区写一条 `- cron:`，各带自己的 `timezone`。私有仓库每月有 Actions 分钟数额度
+（见 GitHub 计费文档）；每次运行至少按 1 分钟计，一天两次一个月大约用 60 分钟。
 
 ## 本地运行
 
