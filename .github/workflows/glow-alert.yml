@@ -60,14 +60,17 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        # Inputs are compared to both true and 'true': an API-triggered dispatch may
+        # pass them as strings, and the string 'false' would otherwise count as true.
+        # On schedule events inputs are empty, so both flags stay off.
         run: >
           python -m glow_alert run --config config.toml --state state/sent.json
-          ${{ inputs.dry_run && '--dry-run' || '' }}
-          ${{ inputs.ignore_schedule && '--ignore-schedule' || '' }}
+          ${{ (inputs.dry_run == true || inputs.dry_run == 'true') && '--dry-run' || '' }}
+          ${{ (inputs.ignore_schedule == true || inputs.ignore_schedule == 'true') && '--ignore-schedule' || '' }}
 
       - name: Commit decision log
         # Runs after a failed tick too, so decisions made for healthy subscriptions are kept.
-        if: ${{ always() && steps.config.outputs.present == 'true' && !inputs.dry_run && !inputs.ignore_schedule }}
+        if: ${{ always() && steps.config.outputs.present == 'true' && !(inputs.dry_run == true || inputs.dry_run == 'true') && !(inputs.ignore_schedule == true || inputs.ignore_schedule == 'true') }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
