@@ -141,7 +141,7 @@ New York · 今日晚霞
 `notify_at` 的分钟。设了 `timezone` 后，cron 里的小时就是当地时间，夏令时由 GitHub 处理。
 
 GitHub 的定时任务不保证准时：可能延迟，负载高时还会被直接丢掉。一个提醒只有一次运行时，这次被丢掉，
-当天就收不到提醒，也不会有任何报错。介意的话，加一次一小时后的备份。备份不会重复发信，因为每个事件只判断一次：
+当天就收不到提醒，也不会有任何报错。要准时可靠，请用下面的[外部触发](#更可靠外部触发)；至少加一次一小时后的备份。备份不会重复发信，因为每个事件只判断一次：
 
 ```yaml
     - cron: "17 8,9,21,22 * * *"   # 每个提醒运行一次，再加一小时后的一次备份
@@ -150,6 +150,50 @@ GitHub 的定时任务不保证准时：可能延迟，负载高时还会被直�
 
 订阅分布在不同时区时，每个时区写一条 `- cron:`，各带自己的 `timezone`。私有仓库每月有 Actions 分钟数额度
 （见 GitHub 计费文档）；每次运行至少按 1 分钟计，一天两次一个月大约用 60 分钟。
+
+### 更可靠：外部触发
+
+GitHub 自己的定时任务可能连续好几天不触发：测试时，一个新建的私有仓库整整两天没有一次定时运行，手动运行却一直正常。
+可以改用外部定时服务，在你设定的时间通过 GitHub API 启动工作流。`cron` 定时保留作备份；每个事件只判断一次，不会收到两封邮件。
+下面以免费的 [cron-job.org](https://cron-job.org) 为例，任何能发带自定义请求头的 POST 请求的服务都可以。
+
+1. **建一个令牌**给外部服务用：GitHub → 头像 → Settings → Developer settings → Personal access tokens →
+   **Fine-grained tokens** → Generate new token。
+   - Repository access：选 **Only select repositories**，只勾你复制的私有仓库。
+   - Permissions：只开 **Actions: Read and write**。这样令牌只能启动和取消这个仓库的运行，改不了代码和配置。
+   - 设一个过期时间并记下日期。过期后请求会失败，重新生成一个替换即可。
+   - 令牌只显示一次，复制后直接粘贴到定时服务里。
+2. **建定时任务**（cron-job.org 上的字段名可能略有不同）：
+
+   | 字段 | 填什么 |
+   |---|---|
+   | URL | `https://api.github.com/repos/OWNER/REPO/actions/workflows/glow-alert.yml/dispatches`（换成你的用户名和仓库名） |
+   | 时间 | `5 8,21 * * *`：每个 `notify_at` 小时的第 5 分钟 |
+   | 时区 | 订阅所在时区，例如 `Asia/Shanghai`。cron-job.org 默认是 UTC |
+   | 方法 | `POST` |
+   | 请求体 | `{"ref":"main","inputs":{"dry_run":"false","ignore_schedule":"false"}}` |
+   | 通知 | 打开失败时邮件通知 |
+
+   请求头每行一项，名称和值分两栏填：
+
+   | 请求头 | 值 |
+   |---|---|
+   | `Authorization` | `Bearer github_pat_...`（`Bearer`、一个空格、完整的令牌；不要加 `<>` 或引号） |
+   | `Accept` | `application/vnd.github+json` |
+   | `X-GitHub-Api-Version` | `2022-11-28` |
+   | `Content-Type` | `application/json` |
+
+   第 5 分钟是为了和第 17 分钟的备份运行错开。两者都要落在 `[notify_at, notify_at + grace_hours)` 窗口里。
+3. **测试**：先把请求体里的两个值改成 `"true"`，手动执行一次任务。应返回 **204**；Actions 里会出现一条新的
+   `workflow_dispatch` 运行，**Check forecast and send** 这一步的命令末尾是 `--dry-run --ignore-schedule`。
+   再把请求体改回 `"false"`，执行一次，命令末尾就没有参数了。不在提醒时间时日志显示 `not due`，这是正常的。
+   等下一个提醒时间过后，仓库里会多一条 `state: record glow-alert decisions` 提交。
+
+返回 **401** 时，在任务的执行记录里打开失败的那次请求，看 `"message"`：
+- `Requires authentication`：没有 `Authorization` 请求头，或者缺了 `Bearer `。
+- `Bad credentials`：令牌不对、不完整、已过期或已删除。
+
+请求体里的值是字符串，因为定时服务就是这样发送的。工作流只把 `true` 或 `"true"` 当作开启。
 
 ## 本地运行
 

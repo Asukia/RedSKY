@@ -32,6 +32,11 @@ run on a schedule by GitHub Actions. Modules: `config` (TOML) → `schedule` (du
 - Observed 2026-10-19: upstream's hourly schedule fired only 4 times in ~17 h,
   and a private copy's two daily slots both never fired. Treat any single
   scheduled run as unreliable; README suggests a backup run an hour later.
+- External trigger (README "More reliable: an external trigger"): a cron
+  service POSTs workflow_dispatch with inputs as strings ("false"). The
+  workflow compares inputs to both true and 'true', because the string
+  'false' is truthy and would silently make a real run a dry run. Keep that
+  comparison if the workflow is edited. Verified 2026-10-20 in a private copy.
 - Dedupe key = (subscription id, event type, event LOCAL date).
 - Docs say scheduled workflows auto-disable after 60 days of inactivity in
   PUBLIC repos. Use a private repo (config holds email addresses).

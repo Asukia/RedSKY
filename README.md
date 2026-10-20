@@ -148,8 +148,8 @@ just after the `notify_at` minute. With `timezone` set, cron hours are local hou
 handled by GitHub.
 
 GitHub runs scheduled workflows on a best-effort basis: they can start late, and under load some are dropped.
-When the one run for a reminder is dropped, that reminder is skipped silently. If that matters, add a backup run
-an hour later. It never sends twice, because each event is decided only once:
+When the one run for a reminder is dropped, that reminder is skipped silently. For reliable timing use an
+[external trigger](#more-reliable-an-external-trigger); at least add a backup run an hour later. It never sends twice, because each event is decided only once:
 
 ```yaml
     - cron: "17 8,9,21,22 * * *"   # each reminder plus a backup an hour later
@@ -159,6 +159,56 @@ an hour later. It never sends twice, because each event is decided only once:
 Subscriptions in different timezones need one `- cron:` entry (with its own `timezone`) per timezone.
 Private repos have a monthly Actions minutes allowance (see GitHub's billing docs). Each run is billed as at least
 one minute, so two runs a day use about 60 minutes a month.
+
+### More reliable: an external trigger
+
+GitHub's own schedule can fail for days: in testing, a new private copy got no scheduled runs at all for two days,
+while manual runs worked. An external cron service can start the workflow through the GitHub API at the time you
+choose instead. Keep the `cron` schedule as a backup; each event is decided once, so you never get two emails.
+[cron-job.org](https://cron-job.org) (free) is used below; any service that can send a POST request with custom
+headers works.
+
+1. **Create a token** for the external service: GitHub → your avatar → Settings → Developer settings →
+   Personal access tokens → **Fine-grained tokens** → Generate new token.
+   - Repository access: **Only select repositories** → your private copy.
+   - Permissions: **Actions: Read and write**, nothing else. The token can then start and cancel runs of that repo,
+     but not change its code or config.
+   - Set an expiration and write the date down. When it expires, the requests fail; generate a new one and replace it.
+   - The token is shown only once. Paste it straight into the cron service.
+2. **Create a cron job** (cron-job.org field names may differ slightly):
+
+   | Field | Value |
+   |---|---|
+   | URL | `https://api.github.com/repos/OWNER/REPO/actions/workflows/glow-alert.yml/dispatches` (your user and repo name) |
+   | Schedule | `5 8,21 * * *`: minute 5 of each `notify_at` hour |
+   | Timezone | your subscriptions' timezone, e.g. `Asia/Shanghai`. cron-job.org defaults to UTC |
+   | Method | `POST` |
+   | Body | `{"ref":"main","inputs":{"dry_run":"false","ignore_schedule":"false"}}` |
+   | Notifications | turn on email on failure |
+
+   Headers, one per row, name and value in separate fields:
+
+   | Header | Value |
+   |---|---|
+   | `Authorization` | `Bearer github_pat_...` (the word `Bearer`, one space, the whole token; no `<>` or quotes) |
+   | `Accept` | `application/vnd.github+json` |
+   | `X-GitHub-Api-Version` | `2022-11-28` |
+   | `Content-Type` | `application/json` |
+
+   Minute 5 keeps the external run apart from the backup at minute 17. Both must land in
+   `[notify_at, notify_at + grace_hours)`.
+3. **Test it.** First set the body's two values to `"true"` and run the job once by hand. The response should be
+   **204**, and Actions shows a new `workflow_dispatch` run whose **Check forecast and send** command ends in
+   `--dry-run --ignore-schedule`. Then put the body back to `"false"` and run it again: the command now ends with no
+   flags. Outside the reminder window the log says `not due`, which is expected. After the next reminder time, the repo
+   gets a `state: record glow-alert decisions` commit.
+
+If the response is **401**, open the failed request in the job's history and read `"message"`:
+- `Requires authentication`: the `Authorization` header is missing or lacks `Bearer `.
+- `Bad credentials`: the token is wrong, truncated, expired or deleted.
+
+The values are strings because that is how the cron service sends them. The workflow treats an input as on only when
+it is `true` or `"true"`.
 
 ## Run locally
 
